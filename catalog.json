@@ -66,6 +66,24 @@
           "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-routing-2026-10-v2/valhalla_tiles.tar.part03"
         }
       ]
+    },
+    {
+      "id": "de-charging",
+      "country": "de",
+      "countryName": "Deutschland",
+      "kind": "charging",
+      "version": "2026-09-v1",
+      "sizeBytes": 23966368,
+      "sha256": "e41aa4bd999a6f0b44676c08215dda73b1be7813199fe667274d6ff2036682fc",
+      "fileName": "charging-stations.pmtiles",
+      "parts": [
+        {
+          "name": "charging-stations.pmtiles",
+          "sizeBytes": 23966368,
+          "sha256": "e41aa4bd999a6f0b44676c08215dda73b1be7813199fe667274d6ff2036682fc",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-charging-2026-09-v1/charging-stations.pmtiles"
+        }
+      ]
     }
   ]
 }
