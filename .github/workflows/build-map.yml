@@ -20,9 +20,17 @@ on:
         required: true
         default: 2026-10-v1
         type: string
+  schedule:
+    # Monthly automatic Denmark map update.
+    # GitHub cron uses UTC.
+    - cron: "23 4 8 * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-offline-map
+  cancel-in-progress: false
 
 jobs:
   build-map:
@@ -32,6 +40,52 @@ jobs:
     steps:
       - name: Checkout map repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build configuration
+        id: config
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COUNTRY: ${{ inputs.country }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            COUNTRY="dk"
+            PUBLISH="true"
+            BASE_VERSION="$(date -u +'%Y-%m')"
+            N=1
+            while gh release view "$COUNTRY-map-$BASE_VERSION-v$N" >/dev/null 2>&1; do
+              N=$((N + 1))
+            done
+            VERSION="$BASE_VERSION-v$N"
+          else
+            COUNTRY="${INPUT_COUNTRY:-dk}"
+            PUBLISH="${INPUT_PUBLISH:-false}"
+            VERSION="${INPUT_VERSION:-$(date -u +'%Y-%m-v1')}"
+          fi
+
+          {
+            echo "COUNTRY=$COUNTRY"
+            echo "PUBLISH=$PUBLISH"
+            echo "VERSION=$VERSION"
+            echo "TAG=$COUNTRY-map-$VERSION"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "country=$COUNTRY"
+            echo "publish=$PUBLISH"
+            echo "version=$VERSION"
+            echo "tag=$COUNTRY-map-$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Country: $COUNTRY"
+          echo "Publish: $PUBLISH"
+          echo "Version: $VERSION"
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -47,43 +101,65 @@ jobs:
       - name: Build DriveChronik map
         run: |
           chmod +x scripts/build-map.sh
-          scripts/build-map.sh "${{ inputs.country }}"
+          scripts/build-map.sh "$COUNTRY"
+
+      - name: Verify build
+        run: |
+          set -euo pipefail
+
+          DIR="build/maps/$COUNTRY"
+          OUTPUT_NAME="$(sed -n 's/^output=//p' "$DIR/build-info.txt")"
+
+          test -n "$OUTPUT_NAME"
+          test -s "$DIR/$OUTPUT_NAME"
+          test -s "$DIR/$OUTPUT_NAME.sha256"
+          test -s "$DIR/$OUTPUT_NAME.size"
+          test -s "$DIR/${OUTPUT_NAME%.pmtiles}.layerstats.tsv.gz"
+
+          EXPECTED_SIZE="$(cat "$DIR/$OUTPUT_NAME.size")"
+          ACTUAL_SIZE="$(stat -c '%s' "$DIR/$OUTPUT_NAME")"
+          test "$EXPECTED_SIZE" = "$ACTUAL_SIZE"
+
+          EXPECTED_SHA="$(awk '{print $1}' "$DIR/$OUTPUT_NAME.sha256")"
+          ACTUAL_SHA="$(sha256sum "$DIR/$OUTPUT_NAME" | awk '{print $1}')"
+          test "$EXPECTED_SHA" = "$ACTUAL_SHA"
+
+          # Guard against obviously incomplete map builds.
+          test "$ACTUAL_SIZE" -gt 50000000
+
+          echo "Verified $OUTPUT_NAME"
+          echo "Size: $ACTUAL_SIZE bytes"
+          echo "SHA-256: $ACTUAL_SHA"
 
       - name: Show result
         run: |
-          ls -lh build/maps/"${{ inputs.country }}"
-          cat build/maps/"${{ inputs.country }}"/*.sha256
-          cat build/maps/"${{ inputs.country }}"/*.size
-          cat build/maps/"${{ inputs.country }}"/build-info.txt
+          ls -lh build/maps/"$COUNTRY"
+          cat build/maps/"$COUNTRY"/*.sha256
+          cat build/maps/"$COUNTRY"/*.size
+          cat build/maps/"$COUNTRY"/build-info.txt
 
       - name: Upload map artifact
         uses: actions/upload-artifact@v4
         with:
-          name: drivechronik-map-${{ inputs.country }}
-          path: build/maps/${{ inputs.country }}/
+          name: drivechronik-map-${{ steps.config.outputs.country }}
+          path: build/maps/${{ steps.config.outputs.country }}/
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
 
       - name: Publish verified map release
-        if: ${{ inputs.publish }}
+        if: ${{ steps.config.outputs.publish == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          COUNTRY: ${{ inputs.country }}
-          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
           DIR="build/maps/$COUNTRY"
           OUTPUT_NAME="$(sed -n 's/^output=//p' "$DIR/build-info.txt")"
           COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
-          TAG="$COUNTRY-map-$VERSION"
 
           test -n "$OUTPUT_NAME"
           test -n "$COUNTRY_NAME"
-          test -f "$DIR/$OUTPUT_NAME"
-          test -f "$DIR/$OUTPUT_NAME.sha256"
-          test -f "$DIR/$OUTPUT_NAME.size"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG existiert bereits; Abbruch, damit nichts überschrieben wird." >&2
@@ -102,8 +178,6 @@ jobs:
           - Quelle: OpenStreetMap / Geofabrik
           - Format: PMTiles / OpenMapTiles
           - Zoom: 0–14
-
-          Der Katalog wird bewusst erst nach Prüfung dieses Releases aktualisiert.
           EOF
 
           gh release create "$TAG" \
@@ -115,4 +189,86 @@ jobs:
             --title "$COUNTRY_NAME Offline-Karte $VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
 
+          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fx "$OUTPUT_NAME"
           gh release view "$TAG" --json url,tagName,name
+
+      - name: Update catalog after verified release
+        if: ${{ steps.config.outputs.publish == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          DIR="build/maps/$COUNTRY"
+          OUTPUT_NAME="$(sed -n 's/^output=//p' "$DIR/build-info.txt")"
+          COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
+          SHA256="$(awk '{print $1}' "$DIR/$OUTPUT_NAME.sha256")"
+          SIZE_BYTES="$(cat "$DIR/$OUTPUT_NAME.size")"
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/$OUTPUT_NAME"
+
+          # Ensure catalog changes are based on the latest main branch.
+          git pull --rebase origin main
+
+          export OUTPUT_NAME COUNTRY_NAME SHA256 SIZE_BYTES RELEASE_URL
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("catalog.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+
+          country = os.environ["COUNTRY"]
+          version = os.environ["VERSION"]
+          output_name = os.environ["OUTPUT_NAME"]
+          country_name = os.environ["COUNTRY_NAME"]
+          sha256 = os.environ["SHA256"]
+          size_bytes = int(os.environ["SIZE_BYTES"])
+          release_url = os.environ["RELEASE_URL"]
+
+          package = {
+              "id": f"{country}-map",
+              "country": country,
+              "countryName": country_name,
+              "kind": "map",
+              "version": version,
+              "sizeBytes": size_bytes,
+              "sha256": sha256,
+              "fileName": output_name,
+              "parts": [
+                  {
+                      "name": output_name,
+                      "sizeBytes": size_bytes,
+                      "sha256": sha256,
+                      "url": release_url,
+                  }
+              ],
+          }
+
+          packages = data.setdefault("packages", [])
+          for index, existing in enumerate(packages):
+              if existing.get("id") == package["id"]:
+                  packages[index] = package
+                  break
+          else:
+              packages.append(package)
+
+          path.write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python3 -m json.tool catalog.json >/dev/null
+
+          if git diff --quiet -- catalog.json; then
+            echo "Catalog already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          git commit -m "Update $COUNTRY map catalog to $VERSION"
+          git push origin HEAD:main
