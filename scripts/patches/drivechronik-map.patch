@@ -1,0 +1,33 @@
+diff --git a/src/main/java/org/openmaptiles/layers/Building.java b/src/main/java/org/openmaptiles/layers/Building.java
+--- a/src/main/java/org/openmaptiles/layers/Building.java
++++ b/src/main/java/org/openmaptiles/layers/Building.java
+@@ -164,10 +164,9 @@ public class Building implements
+       var feature = features.polygon(LAYER_NAME).setBufferPixels(BUFFER_SIZE)
+         .setMinZoom(13)
+         .setMinPixelSize(2)
+-        .setAttrWithMinzoom(Fields.RENDER_HEIGHT, renderHeight, 14)
+-        .setAttrWithMinzoom(Fields.RENDER_MIN_HEIGHT, renderMinHeight, 14)
+-        .setAttrWithMinzoom(Fields.COLOUR, color, 14)
+-        .setAttrWithMinzoom(Fields.HIDE_3D, hide3d, 14)
++        // DriveChronik renders buildings only as flat 2D polygons.
++        // Simplify z14 geometry moderately to reduce offline map size.
++        .setPixelToleranceAtMaxZoom(0.25)
+         .setSortKey(renderHeight);
+       if (mergeZ13Buildings) {
+         feature
+diff --git a/src/main/java/org/openmaptiles/layers/Landcover.java b/src/main/java/org/openmaptiles/layers/Landcover.java
+--- a/src/main/java/org/openmaptiles/layers/Landcover.java
++++ b/src/main/java/org/openmaptiles/layers/Landcover.java
+@@ -126,8 +126,10 @@ public class Landcover implements
+     if (clazz != null) {
+       features.polygon(LAYER_NAME).setBufferPixels(BUFFER_SIZE)
+         .setMinPixelSizeOverrides(MIN_PIXEL_SIZE_THRESHOLDS)
+-        // default is 0.1, this helps reduce size of some heavy z7-10 tiles
+-        .setPixelToleranceBelowZoom(10, 0.25)
++        // DriveChronik displays landcover as a simple flat orientation layer.
++        // Use stronger simplification while keeping the visible polygons.
++        .setPixelTolerance(0.25)
++        .setPixelToleranceAtMaxZoom(0.50)
+         .setAttr(Fields.CLASS, clazz)
+         .setAttr(Fields.SUBCLASS, subclass)
+         .setNumPointsAttr(TEMP_NUM_POINTS_ATTR)
