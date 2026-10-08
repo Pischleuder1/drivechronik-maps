@@ -6,28 +6,28 @@
       "country": "de",
       "countryName": "Deutschland",
       "kind": "map",
-      "version": "2026-10",
-      "sizeBytes": 3120205459,
-      "sha256": "ea1a2fec47d8fccf0cb8d6c35f0f2eab644fb366eb9222ea763ec20efb8b9dcc",
+      "version": "2026-10-v2",
+      "sizeBytes": 2602671978,
+      "sha256": "8ad28ba097071f7d2c2c9bd5b7ad8fd6ad627a341a9adcf859475a25f679adf9",
       "fileName": "germany.pmtiles",
       "parts": [
         {
           "name": "germany.pmtiles.part00",
           "sizeBytes": 1073741824,
-          "sha256": "22642ac35cc18911436c4b476b484f623d66a098f76215f1b3559f870b2dcac3",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany.pmtiles.part00"
+          "sha256": "6b8e002f32ee816cd5e3afeb3e3afbc3d1c18cc5b84e2a703586bc0169a23cfe",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-map-2026-10-v2/germany.pmtiles.part00"
         },
         {
           "name": "germany.pmtiles.part01",
           "sizeBytes": 1073741824,
-          "sha256": "fe821060eab369ff1641a3fa8bf58eb6dddc04aaa82162ea84b9e4b4be8807c6",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany.pmtiles.part01"
+          "sha256": "9e4e2856333648dcd7500d247ca29476a1d8498d9a5b58ac238f12aae5b641c9",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-map-2026-10-v2/germany.pmtiles.part01"
         },
         {
           "name": "germany.pmtiles.part02",
-          "sizeBytes": 972721811,
-          "sha256": "73e45b22dce48c99bef18f2106ef8426b49ed13d52e2f4810d853cadaa7dfbfd",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany.pmtiles.part02"
+          "sizeBytes": 455188330,
+          "sha256": "a0c89c40b091100be5864a105196148c2b11e7512021b0c25718603cc9fbf5db",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-map-2026-10-v2/germany.pmtiles.part02"
         }
       ]
     },
