@@ -10,9 +10,19 @@ on:
         type: choice
         options:
           - dk
+      publish:
+        description: Publish verified build as a GitHub Release
+        required: true
+        default: false
+        type: boolean
+      version:
+        description: Release version (used only when publish=true)
+        required: true
+        default: 2026-10-v1
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-map:
@@ -54,3 +64,55 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
+
+      - name: Publish verified map release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNTRY: ${{ inputs.country }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          DIR="build/maps/$COUNTRY"
+          OUTPUT_NAME="$(sed -n 's/^output=//p' "$DIR/build-info.txt")"
+          COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
+          TAG="$COUNTRY-map-$VERSION"
+
+          test -n "$OUTPUT_NAME"
+          test -n "$COUNTRY_NAME"
+          test -f "$DIR/$OUTPUT_NAME"
+          test -f "$DIR/$OUTPUT_NAME.sha256"
+          test -f "$DIR/$OUTPUT_NAME.size"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG existiert bereits; Abbruch, damit nichts überschrieben wird." >&2
+            exit 1
+          fi
+
+          SHA256="$(awk '{print $1}' "$DIR/$OUTPUT_NAME.sha256")"
+          SIZE_BYTES="$(cat "$DIR/$OUTPUT_NAME.size")"
+
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          DriveChronik Offline-Karte für $COUNTRY_NAME.
+
+          - Datei: `$OUTPUT_NAME`
+          - Größe: $SIZE_BYTES Byte
+          - SHA-256: `$SHA256`
+          - Quelle: OpenStreetMap / Geofabrik
+          - Format: PMTiles / OpenMapTiles
+          - Zoom: 0–14
+
+          Der Katalog wird bewusst erst nach Prüfung dieses Releases aktualisiert.
+          EOF
+
+          gh release create "$TAG" \
+            "$DIR/$OUTPUT_NAME" \
+            "$DIR/$OUTPUT_NAME.sha256" \
+            "$DIR/$OUTPUT_NAME.size" \
+            "$DIR/build-info.txt" \
+            --target "$GITHUB_SHA" \
+            --title "$COUNTRY_NAME Offline-Karte $VERSION" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+          gh release view "$TAG" --json url,tagName,name
