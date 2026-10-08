@@ -1,0 +1,295 @@
+name: Update charging stations
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 5 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-charging
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            git \
+            curl \
+            jq \
+            sqlite3 \
+            libsqlite3-dev \
+            zlib1g-dev
+
+      - name: Install tippecanoe
+        run: |
+          git clone --depth 1 \
+            https://github.com/felt/tippecanoe.git \
+            /tmp/tippecanoe
+
+          make -C /tmp/tippecanoe -j2
+          sudo make -C /tmp/tippecanoe install
+
+          tippecanoe --version
+
+      - name: Install pmtiles
+        run: |
+          PMTILES_VERSION="1.28.0"
+
+          curl -fL \
+            "https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles_${PMTILES_VERSION}_Linux_x86_64.tar.gz" \
+            -o /tmp/pmtiles.tar.gz
+
+          tar -xzf /tmp/pmtiles.tar.gz -C /tmp
+          sudo install /tmp/pmtiles /usr/local/bin/pmtiles
+
+          pmtiles --version || true
+
+      - name: Find current BNetzA CSV
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PAGE_URL="https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/E-Mobilitaet/Ladesaeulenkarte/start.html"
+
+          curl -fsSL "$PAGE_URL" -o /tmp/bnetza.html
+
+          CSV_URL="$(
+            python3 - <<'PY'
+          import html
+          import re
+          from urllib.parse import urljoin
+
+          page_url = "https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/E-Mobilitaet/Ladesaeulenkarte/start.html"
+
+          text = open(
+              "/tmp/bnetza.html",
+              "r",
+              encoding="utf-8",
+              errors="ignore",
+          ).read()
+
+          candidates = []
+
+          for href in re.findall(
+              r'''href=["']([^"']+)["']''',
+              text,
+              flags=re.I,
+          ):
+              href = html.unescape(href)
+
+              if ".csv" not in href.lower():
+                  continue
+
+              url = urljoin(page_url, href)
+
+              if (
+                  "lades" in url.lower()
+                  or "emobil" in url.lower()
+              ):
+                  candidates.append(url)
+
+          if not candidates:
+              raise SystemExit(
+                  "Kein BNetzA-Ladesäulen-CSV-Link gefunden"
+              )
+
+          print(candidates[0])
+          PY
+          )"
+
+          echo "BNetzA CSV: $CSV_URL"
+
+          echo "csv_url=$CSV_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Download BNetzA CSV
+        run: |
+          mkdir -p source
+
+          curl -fL \
+            "${{ steps.source.outputs.csv_url }}" \
+            -o source/bnetza-charging.csv
+
+          test -s source/bnetza-charging.csv
+
+          ls -lh source/bnetza-charging.csv
+
+      - name: Build charging PMTiles
+        run: |
+          ./scripts/build-charging.py \
+            source/bnetza-charging.csv \
+            --build-dir build
+
+      - name: Read build metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHA="$(
+            sha256sum build/charging-stations.pmtiles |
+            awk '{print $1}'
+          )"
+
+          SIZE="$(
+            stat -c '%s' build/charging-stations.pmtiles
+          )"
+
+          CURRENT_SHA="$(
+            jq -r '
+              .packages[]
+              | select(.id == "de-charging")
+              | .sha256
+            ' catalog.json
+          )"
+
+          echo "new_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "current_sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
+
+          if [ "$SHA" = "$CURRENT_SHA" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Keine Änderung am Charging-Paket."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Neues Charging-Paket erkannt."
+          fi
+
+      - name: Generate release version
+        if: steps.meta.outputs.changed == 'true'
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MONTH="$(date -u +'%Y-%m')"
+          PREFIX="de-charging-${MONTH}-v"
+
+          MAX=0
+
+          while IFS= read -r TAG; do
+            N="${TAG##*-v}"
+
+            if [[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -gt "$MAX" ]; then
+              MAX="$N"
+            fi
+          done < <(
+            git tag -l "${PREFIX}*" |
+            sort -V
+          )
+
+          NEXT=$((MAX + 1))
+
+          TAG="${PREFIX}${NEXT}"
+          VERSION="${MONTH}-v${NEXT}"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "Release: $TAG"
+
+      - name: Update catalog
+        if: steps.meta.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ steps.meta.outputs.new_sha }}
+          SIZE: ${{ steps.meta.outputs.size }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          p = Path("catalog.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+
+          tag = os.environ["TAG"]
+          version = os.environ["VERSION"]
+          sha = os.environ["SHA"]
+          size = int(os.environ["SIZE"])
+
+          url = (
+              "https://github.com/"
+              "Pischleuder1/drivechronik-maps/"
+              f"releases/download/{tag}/"
+              "charging-stations.pmtiles"
+          )
+
+          pkg = next(
+              x
+              for x in data["packages"]
+              if x["id"] == "de-charging"
+          )
+
+          pkg["version"] = version
+          pkg["sizeBytes"] = size
+          pkg["sha256"] = sha
+          pkg["fileName"] = "charging-stations.pmtiles"
+          pkg["parts"] = [
+              {
+                  "name": "charging-stations.pmtiles",
+                  "sizeBytes": size,
+                  "sha256": sha,
+                  "url": url,
+              }
+          ]
+
+          p.write_text(
+              json.dumps(
+                  data,
+                  ensure_ascii=False,
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          cat catalog.json
+
+      - name: Create release
+        if: steps.meta.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            build/charging-stations.pmtiles \
+            --title "$TAG" \
+            --notes "Automatisch erzeugtes Offline-Ladestationen-Paket auf Basis der Daten von Bundesnetzagentur.de (CC BY 4.0)."
+
+      - name: Commit updated catalog
+        if: steps.meta.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add catalog.json
+          git commit -m "Update charging stations to ${VERSION}"
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "## Charging update"
+            echo
+            echo "- New SHA: \`${{ steps.meta.outputs.new_sha }}\`"
+            echo "- Previous SHA: \`${{ steps.meta.outputs.current_sha }}\`"
+            echo "- Changed: \`${{ steps.meta.outputs.changed }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
