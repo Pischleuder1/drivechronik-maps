@@ -1,0 +1,57 @@
+name: Build offline map
+
+on:
+  workflow_dispatch:
+    inputs:
+      country:
+        description: Country code to build
+        required: true
+        default: dk
+        type: choice
+        options:
+          - dk
+
+permissions:
+  contents: read
+
+jobs:
+  build-map:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout map repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          df -h /
+
+      - name: Build DriveChronik map
+        run: |
+          chmod +x scripts/build-map.sh
+          scripts/build-map.sh "${{ inputs.country }}"
+
+      - name: Show result
+        run: |
+          ls -lh build/maps/"${{ inputs.country }}"
+          cat build/maps/"${{ inputs.country }}"/*.sha256
+          cat build/maps/"${{ inputs.country }}"/*.size
+          cat build/maps/"${{ inputs.country }}"/build-info.txt
+
+      - name: Upload map artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: drivechronik-map-${{ inputs.country }}
+          path: build/maps/${{ inputs.country }}/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
