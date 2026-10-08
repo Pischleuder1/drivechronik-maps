@@ -36,40 +36,34 @@
       "country": "de",
       "countryName": "Deutschland",
       "kind": "routing",
-      "version": "2026-10",
-      "sizeBytes": 5288048640,
-      "sha256": "d8a804a0994d1b66cb33f99147504eaa8e54abc6de157fd6c82b1de7066d0417",
+      "version": "2026-10-v2",
+      "sizeBytes": 3488768000,
+      "sha256": "e09b9aae6534e2f289417525a4ffa34e00812545aeb239d87e82ad6508c57276",
       "fileName": "valhalla_tiles.tar",
       "parts": [
         {
-          "name": "germany-valhalla.tar.part00",
+          "name": "valhalla_tiles.tar.part00",
           "sizeBytes": 1073741824,
-          "sha256": "44fa469d7d5bbdce7b21473bf32a9266b9709c232b23dac293b66b8344cc6724",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany-valhalla.tar.part00"
+          "sha256": "55d91cb80eb969ab6e355aa6133c56ff1b7774b16381e46085792bb0ac9b3be2",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-routing-2026-10-v2/valhalla_tiles.tar.part00"
         },
         {
-          "name": "germany-valhalla.tar.part01",
+          "name": "valhalla_tiles.tar.part01",
           "sizeBytes": 1073741824,
-          "sha256": "abb9916386871bf08b7311edfe22a256e07d802985d585482ac338869d4f3e2c",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany-valhalla.tar.part01"
+          "sha256": "21a271292d2223d50295456a948e163d48d2e1e9068c03de6f7f52922980dbc9",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-routing-2026-10-v2/valhalla_tiles.tar.part01"
         },
         {
-          "name": "germany-valhalla.tar.part02",
+          "name": "valhalla_tiles.tar.part02",
           "sizeBytes": 1073741824,
-          "sha256": "ffe3345a819a7239f92d4310d92a82d77291af9df3209214d79aee2315287572",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany-valhalla.tar.part02"
+          "sha256": "37989a398516f812f50d7547608f517853cfe845171ec317fa783e2cadf43c86",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-routing-2026-10-v2/valhalla_tiles.tar.part02"
         },
         {
-          "name": "germany-valhalla.tar.part03",
-          "sizeBytes": 1073741824,
-          "sha256": "c3a4581626feb933e95659c33e42ad0966f91911df0a1fb68d29e731c7818c2a",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany-valhalla.tar.part03"
-        },
-        {
-          "name": "germany-valhalla.tar.part04",
-          "sizeBytes": 993081344,
-          "sha256": "c2e36af9aed87d503eb06e27d803a8e57ed3efb29a4c2c8f73e53e76174418a6",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-2026-10/germany-valhalla.tar.part04"
+          "name": "valhalla_tiles.tar.part03",
+          "sizeBytes": 267542528,
+          "sha256": "74c358ad3dadf914d347ca87633f5a34d942943a1b4092a13eb66eaef3f9364b",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-routing-2026-10-v2/valhalla_tiles.tar.part03"
         }
       ]
     }
