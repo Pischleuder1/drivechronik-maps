@@ -284,6 +284,40 @@ jobs:
           git commit -m "Update charging stations to ${VERSION}"
           git push
 
+      - name: Prune old charging releases
+        if: steps.meta.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t TAGS < <(
+            gh release list               --limit 100               --json tagName,publishedAt               --jq '
+                map(
+                  select(
+                    .tagName
+                    | startswith("de-charging-")
+                  )
+                )
+                | sort_by(.publishedAt)
+                | reverse
+                | .[].tagName
+              '
+          )
+
+          echo "Charging-Releases gefunden: ${#TAGS[@]}"
+
+          if [ "${#TAGS[@]}" -le 3 ]; then
+            echo "Keine alten Charging-Releases zu löschen."
+            exit 0
+          fi
+
+          for TAG in "${TAGS[@]:3}"; do
+            echo "Lösche alten Charging-Release: $TAG"
+
+            gh release delete "$TAG"               --yes               --cleanup-tag
+          done
+
       - name: Summary
         run: |
           {
