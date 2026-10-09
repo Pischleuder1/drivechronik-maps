@@ -102,6 +102,24 @@
           "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/dk-map-2026-10-v1/denmark.pmtiles"
         }
       ]
+    },
+    {
+      "id": "dk-routing",
+      "country": "dk",
+      "countryName": "Dänemark",
+      "kind": "routing",
+      "version": "2026-10-v1",
+      "sizeBytes": 352768000,
+      "sha256": "b84889ed8a0a6f87fe4410627395ee49192acc0d895536d010ebfbf74d626f9f",
+      "fileName": "valhalla_tiles.tar",
+      "parts": [
+        {
+          "name": "valhalla_tiles.tar",
+          "sizeBytes": 352768000,
+          "sha256": "b84889ed8a0a6f87fe4410627395ee49192acc0d895536d010ebfbf74d626f9f",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/dk-routing-2026-10-v1/valhalla_tiles.tar"
+        }
+      ]
     }
   ]
 }
