@@ -100,8 +100,7 @@ jobs:
 
       - name: Build DriveChronik map
         run: |
-          chmod +x scripts/build-map.sh
-          scripts/build-map.sh "$COUNTRY"
+          bash scripts/build-map.sh "$COUNTRY"
 
       - name: Verify build
         run: |
