@@ -12,6 +12,12 @@ case "$COUNTRY" in
     LANGUAGES="da,en,de"
     OUTPUT_NAME="denmark.pmtiles"
     ;;
+  nl)
+    COUNTRY_NAME="Niederlande"
+    AREA="netherlands"
+    LANGUAGES="nl,en,de"
+    OUTPUT_NAME="netherlands.pmtiles"
+    ;;
   *)
     echo "Unsupported country: $COUNTRY" >&2
     exit 2
