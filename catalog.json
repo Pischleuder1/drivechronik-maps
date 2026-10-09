@@ -84,6 +84,24 @@
           "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-charging-2026-10-v1/charging-stations.pmtiles"
         }
       ]
+    },
+    {
+      "id": "dk-map",
+      "country": "dk",
+      "countryName": "Dänemark",
+      "kind": "map",
+      "version": "2026-10-v1",
+      "sizeBytes": 310161584,
+      "sha256": "eff424b9f7f8a72d20aba0ac1486a6a80eca7c3c5685055e4792bcbc2db59cea",
+      "fileName": "denmark.pmtiles",
+      "parts": [
+        {
+          "name": "denmark.pmtiles",
+          "sizeBytes": 310161584,
+          "sha256": "eff424b9f7f8a72d20aba0ac1486a6a80eca7c3c5685055e4792bcbc2db59cea",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/dk-map-2026-10-v1/denmark.pmtiles"
+        }
+      ]
     }
   ]
 }
