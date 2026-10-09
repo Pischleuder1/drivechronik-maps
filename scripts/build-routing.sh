@@ -11,6 +11,11 @@ case "$COUNTRY" in
     PBF_URL="https://download.geofabrik.de/europe/denmark-latest.osm.pbf"
     PBF_NAME="denmark-latest.osm.pbf"
     ;;
+  nl)
+    COUNTRY_NAME="Niederlande"
+    PBF_URL="https://download.geofabrik.de/europe/netherlands-latest.osm.pbf"
+    PBF_NAME="netherlands-latest.osm.pbf"
+    ;;
   *)
     echo "Unsupported country: $COUNTRY" >&2
     exit 2
