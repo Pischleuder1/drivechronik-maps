@@ -25,7 +25,14 @@ echo "Downloading $PBF_URL"
 curl -fL --retry 3 --retry-delay 5 "$PBF_URL" -o "$OUT/$PBF_NAME"
 
 echo "Generating Valhalla configuration"
-docker run --rm   --entrypoint /bin/bash   -v "$OUT:/custom_files"   "$VALHALLA_IMAGE"   -lc 'valhalla_build_config     --mjolnir-tile-dir /custom_files/valhalla_tiles     --mjolnir-tile-extract /custom_files/valhalla_tiles.tar     --mjolnir-timezone /custom_files/timezones.sqlite     --mjolnir-admin /custom_files/admins.sqlite     > /custom_files/valhalla.json'
+docker run --rm \
+  --entrypoint valhalla_build_config \
+  "$VALHALLA_IMAGE" \
+  --mjolnir-tile-dir /custom_files/valhalla_tiles \
+  --mjolnir-tile-extract /custom_files/valhalla_tiles.tar \
+  --mjolnir-timezone /custom_files/timezones.sqlite \
+  --mjolnir-admin /custom_files/admins.sqlite \
+  > "$OUT/valhalla.json"
 
 python3 - "$OUT/valhalla.json" <<'PY'
 import json
