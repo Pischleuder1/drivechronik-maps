@@ -1,0 +1,239 @@
+name: Build offline routing
+
+on:
+  workflow_dispatch:
+    inputs:
+      country:
+        description: Country code to build
+        required: true
+        default: dk
+        type: choice
+        options:
+          - dk
+      publish:
+        description: Publish verified build as a GitHub Release
+        required: true
+        default: false
+        type: boolean
+      version:
+        description: Release version (used only when publish=true)
+        required: true
+        default: 2026-10-v1
+        type: string
+  schedule:
+    - cron: "53 4 8 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-offline-routing
+  cancel-in-progress: false
+
+jobs:
+  build-routing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout routing repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build configuration
+        id: config
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COUNTRY: ${{ inputs.country }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            COUNTRY="dk"
+            PUBLISH="true"
+            BASE_VERSION="$(date -u +'%Y-%m')"
+            N=1
+            while gh release view "$COUNTRY-routing-$BASE_VERSION-v$N" >/dev/null 2>&1; do
+              N=$((N + 1))
+            done
+            VERSION="$BASE_VERSION-v$N"
+          else
+            COUNTRY="${INPUT_COUNTRY:-dk}"
+            PUBLISH="${INPUT_PUBLISH:-false}"
+            VERSION="${INPUT_VERSION:-$(date -u +'%Y-%m-v1')}"
+          fi
+
+          {
+            echo "COUNTRY=$COUNTRY"
+            echo "PUBLISH=$PUBLISH"
+            echo "VERSION=$VERSION"
+            echo "TAG=$COUNTRY-routing-$VERSION"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "country=$COUNTRY"
+            echo "publish=$PUBLISH"
+            echo "version=$VERSION"
+            echo "tag=$COUNTRY-routing-$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          df -h /
+
+      - name: Build DriveChronik routing
+        run: |
+          chmod +x scripts/build-routing.sh
+          scripts/build-routing.sh "$COUNTRY"
+
+      - name: Verify routing build
+        run: |
+          set -euo pipefail
+
+          DIR="build/routing/$COUNTRY"
+          test -s "$DIR/valhalla_tiles.tar"
+          test -s "$DIR/valhalla_tiles.tar.sha256"
+          test -s "$DIR/valhalla_tiles.tar.size"
+          test -s "$DIR/admins.sqlite"
+          test -s "$DIR/timezones.sqlite"
+
+          EXPECTED_SIZE="$(cat "$DIR/valhalla_tiles.tar.size")"
+          ACTUAL_SIZE="$(stat -c '%s' "$DIR/valhalla_tiles.tar")"
+          test "$EXPECTED_SIZE" = "$ACTUAL_SIZE"
+
+          EXPECTED_SHA="$(awk '{print $1}' "$DIR/valhalla_tiles.tar.sha256")"
+          ACTUAL_SHA="$(sha256sum "$DIR/valhalla_tiles.tar" | awk '{print $1}')"
+          test "$EXPECTED_SHA" = "$ACTUAL_SHA"
+
+          test "$ACTUAL_SIZE" -gt 10000000
+
+          echo "Verified valhalla_tiles.tar"
+          echo "Size: $ACTUAL_SIZE bytes"
+          echo "SHA-256: $ACTUAL_SHA"
+          ls -lh "$DIR"/release/
+
+      - name: Upload routing artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: drivechronik-routing-${{ steps.config.outputs.country }}
+          path: |
+            build/routing/${{ steps.config.outputs.country }}/valhalla_tiles.tar.sha256
+            build/routing/${{ steps.config.outputs.country }}/valhalla_tiles.tar.size
+            build/routing/${{ steps.config.outputs.country }}/build-info.txt
+            build/routing/${{ steps.config.outputs.country }}/release/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Publish verified routing release
+        if: ${{ steps.config.outputs.publish == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          DIR="build/routing/$COUNTRY"
+          COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
+          SHA256="$(awk '{print $1}' "$DIR/valhalla_tiles.tar.sha256")"
+          SIZE_BYTES="$(cat "$DIR/valhalla_tiles.tar.size")"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG existiert bereits; Abbruch." >&2
+            exit 1
+          fi
+
+          {
+            printf 'DriveChronik Offline-Routing für %s.\n\n' "$COUNTRY_NAME"
+            printf '%s\n' "- Valhalla: 3.8.0"
+            printf '%s\n' "- PKW-Routing only"
+            printf '%s\n' "- Größe: $SIZE_BYTES Byte"
+            printf '%s\n' "- SHA-256: $SHA256"
+            printf '%s\n' "- Quelle: OpenStreetMap / Geofabrik"
+          } > "$RUNNER_TEMP/release-notes.md"
+
+          mapfile -t ASSETS < <(find "$DIR/release" -maxdepth 1 -type f -print | sort)
+
+          gh release create "$TAG"             "${ASSETS[@]}"             "$DIR/valhalla_tiles.tar.sha256"             "$DIR/valhalla_tiles.tar.size"             "$DIR/build-info.txt"             --target "$GITHUB_SHA"             --title "$COUNTRY_NAME Offline-Routing $VERSION"             --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Update catalog after verified release
+        if: ${{ steps.config.outputs.publish == 'true' }}
+        run: |
+          set -euo pipefail
+
+          DIR="build/routing/$COUNTRY"
+          COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
+          SHA256="$(awk '{print $1}' "$DIR/valhalla_tiles.tar.sha256")"
+          SIZE_BYTES="$(cat "$DIR/valhalla_tiles.tar.size")"
+
+          git pull --rebase origin main
+
+          export COUNTRY COUNTRY_NAME VERSION TAG SHA256 SIZE_BYTES GITHUB_REPOSITORY
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("catalog.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          release_dir = Path("build/routing") / os.environ["COUNTRY"] / "release"
+
+          parts = []
+          for asset in sorted(release_dir.iterdir()):
+              if not asset.is_file():
+                  continue
+              digest = hashlib.sha256(asset.read_bytes()).hexdigest()
+              parts.append({
+                  "name": asset.name,
+                  "sizeBytes": asset.stat().st_size,
+                  "sha256": digest,
+                  "url": (
+                      f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/releases/download/{os.environ['TAG']}/{asset.name}"
+                  ),
+              })
+
+          package = {
+              "id": f"{os.environ['COUNTRY']}-routing",
+              "country": os.environ["COUNTRY"],
+              "countryName": os.environ["COUNTRY_NAME"],
+              "kind": "routing",
+              "version": os.environ["VERSION"],
+              "sizeBytes": int(os.environ["SIZE_BYTES"]),
+              "sha256": os.environ["SHA256"],
+              "fileName": "valhalla_tiles.tar",
+              "parts": parts,
+          }
+
+          packages = data.setdefault("packages", [])
+          for i, existing in enumerate(packages):
+              if existing.get("id") == package["id"]:
+                  packages[i] = package
+                  break
+          else:
+              packages.append(package)
+
+          path.write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python3 -m json.tool catalog.json >/dev/null
+
+          if git diff --quiet -- catalog.json; then
+            echo "Catalog already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog.json
+          git commit -m "Update $COUNTRY routing catalog to $VERSION"
+          git push origin HEAD:main
