@@ -138,6 +138,24 @@
           "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/nl-map-2026-10-v1/netherlands.pmtiles"
         }
       ]
+    },
+    {
+      "id": "nl-routing",
+      "country": "nl",
+      "countryName": "Niederlande",
+      "kind": "routing",
+      "version": "2026-10-v1",
+      "sizeBytes": 494397440,
+      "sha256": "5c0ace5836c86ecf541ec64b773ef5d97903ef7db3312f29543c079494466f8b",
+      "fileName": "valhalla_tiles.tar",
+      "parts": [
+        {
+          "name": "valhalla_tiles.tar",
+          "sizeBytes": 494397440,
+          "sha256": "5c0ace5836c86ecf541ec64b773ef5d97903ef7db3312f29543c079494466f8b",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/nl-routing-2026-10-v1/valhalla_tiles.tar"
+        }
+      ]
     }
   ]
 }
