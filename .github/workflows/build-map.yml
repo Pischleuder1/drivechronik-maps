@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - dk
+          - nl
       publish:
         description: Publish verified build as a GitHub Release
         required: true
@@ -21,9 +22,10 @@ on:
         default: 2026-10-v1
         type: string
   schedule:
-    # Monthly automatic Denmark map update.
+    # Monthly automatic map updates.
     # GitHub cron uses UTC.
-    - cron: "23 4 8 * *"
+    - cron: "23 4 8 * *"   # Denmark
+    - cron: "23 4 9 * *"   # Netherlands
 
 permissions:
   contents: write
@@ -55,7 +57,14 @@ jobs:
           set -euo pipefail
 
           if [ "$EVENT_NAME" = "schedule" ]; then
-            COUNTRY="dk"
+            case "${{ github.event.schedule }}" in
+              "23 4 8 * *") COUNTRY="dk" ;;
+              "23 4 9 * *") COUNTRY="nl" ;;
+              *)
+                echo "Unknown schedule: ${{ github.event.schedule }}" >&2
+                exit 1
+                ;;
+            esac
             PUBLISH="true"
             BASE_VERSION="$(date -u +'%Y-%m')"
             N=1
