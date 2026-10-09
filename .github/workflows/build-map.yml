@@ -169,16 +169,15 @@ jobs:
           SHA256="$(awk '{print $1}' "$DIR/$OUTPUT_NAME.sha256")"
           SIZE_BYTES="$(cat "$DIR/$OUTPUT_NAME.size")"
 
-          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          DriveChronik Offline-Karte für $COUNTRY_NAME.
-
-          - Datei: `$OUTPUT_NAME`
-          - Größe: $SIZE_BYTES Byte
-          - SHA-256: `$SHA256`
-          - Quelle: OpenStreetMap / Geofabrik
-          - Format: PMTiles / OpenMapTiles
-          - Zoom: 0–14
-          EOF
+          {
+            printf 'DriveChronik Offline-Karte für %s.\n\n' "$COUNTRY_NAME"
+            printf '%s\n' "- Datei: $OUTPUT_NAME"
+            printf '%s\n' "- Größe: $SIZE_BYTES Byte"
+            printf '%s\n' "- SHA-256: $SHA256"
+            printf '%s\n' "- Quelle: OpenStreetMap / Geofabrik"
+            printf '%s\n' "- Format: PMTiles / OpenMapTiles"
+            printf '%s\n' "- Zoom: 0–14"
+          } > "$RUNNER_TEMP/release-notes.md"
 
           gh release create "$TAG" \
             "$DIR/$OUTPUT_NAME" \
