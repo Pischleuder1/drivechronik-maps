@@ -9,6 +9,7 @@ on:
         default: dk
         type: choice
         options:
+          - de
           - dk
           - nl
       publish:
@@ -22,6 +23,7 @@ on:
         default: 2026-10-v1
         type: string
   schedule:
+    - cron: "53 4 7 * *"   # Germany
     - cron: "53 4 8 * *"   # Denmark
     - cron: "53 4 9 * *"   # Netherlands
 
@@ -56,6 +58,7 @@ jobs:
 
           if [ "$EVENT_NAME" = "schedule" ]; then
             case "${{ github.event.schedule }}" in
+              "53 4 7 * *") COUNTRY="de" ;;
               "53 4 8 * *") COUNTRY="dk" ;;
               "53 4 9 * *") COUNTRY="nl" ;;
               *)

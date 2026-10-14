@@ -6,6 +6,11 @@ WORK_ROOT="${WORK_ROOT:-$PWD/.routing-build}"
 VALHALLA_IMAGE="${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:3.8.0}"
 
 case "$COUNTRY" in
+  de)
+    COUNTRY_NAME="Deutschland"
+    PBF_URL="https://download.geofabrik.de/europe/germany-latest.osm.pbf"
+    PBF_NAME="germany-latest.osm.pbf"
+    ;;
   dk)
     COUNTRY_NAME="Dänemark"
     PBF_URL="https://download.geofabrik.de/europe/denmark-latest.osm.pbf"

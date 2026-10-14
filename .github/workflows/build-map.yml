@@ -9,6 +9,7 @@ on:
         default: dk
         type: choice
         options:
+          - de
           - dk
           - nl
       publish:
@@ -24,6 +25,7 @@ on:
   schedule:
     # Monthly automatic map updates.
     # GitHub cron uses UTC.
+    - cron: "23 4 7 * *"   # Germany
     - cron: "23 4 8 * *"   # Denmark
     - cron: "23 4 9 * *"   # Netherlands
 
@@ -58,6 +60,7 @@ jobs:
 
           if [ "$EVENT_NAME" = "schedule" ]; then
             case "${{ github.event.schedule }}" in
+              "23 4 7 * *") COUNTRY="de" ;;
               "23 4 8 * *") COUNTRY="dk" ;;
               "23 4 9 * *") COUNTRY="nl" ;;
               *)
@@ -187,8 +190,11 @@ jobs:
             printf '%s\n' "- Zoom: 0–14"
           } > "$RUNNER_TEMP/release-notes.md"
 
+          mapfile -t ASSETS < <(find "$DIR/release" -maxdepth 1 -type f -print | sort)
+          test "${#ASSETS[@]}" -gt 0
+
           gh release create "$TAG" \
-            "$DIR/$OUTPUT_NAME" \
+            "${ASSETS[@]}" \
             "$DIR/$OUTPUT_NAME.sha256" \
             "$DIR/$OUTPUT_NAME.size" \
             "$DIR/build-info.txt" \
@@ -196,7 +202,9 @@ jobs:
             --title "$COUNTRY_NAME Offline-Karte $VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
 
-          gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fx "$OUTPUT_NAME"
+          for ASSET in "${ASSETS[@]}"; do
+            gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fx "$(basename "$ASSET")"
+          done
           gh release view "$TAG" --json url,tagName,name
 
       - name: Update catalog after verified release
@@ -211,14 +219,15 @@ jobs:
           COUNTRY_NAME="$(sed -n 's/^countryName=//p' "$DIR/build-info.txt")"
           SHA256="$(awk '{print $1}' "$DIR/$OUTPUT_NAME.sha256")"
           SIZE_BYTES="$(cat "$DIR/$OUTPUT_NAME.size")"
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/$OUTPUT_NAME"
+          # Release assets are read from build/maps/$COUNTRY/release.
 
           # Ensure catalog changes are based on the latest main branch.
           git pull --rebase origin main
 
-          export OUTPUT_NAME COUNTRY_NAME SHA256 SIZE_BYTES RELEASE_URL
+          export OUTPUT_NAME COUNTRY_NAME SHA256 SIZE_BYTES
 
           python3 - <<'PY'
+          import hashlib
           import json
           import os
           from pathlib import Path
@@ -232,7 +241,24 @@ jobs:
           country_name = os.environ["COUNTRY_NAME"]
           sha256 = os.environ["SHA256"]
           size_bytes = int(os.environ["SIZE_BYTES"])
-          release_url = os.environ["RELEASE_URL"]
+          release_dir = Path("build/maps") / country / "release"
+          parts = []
+          for asset in sorted(release_dir.iterdir()):
+              if not asset.is_file():
+                  continue
+              parts.append({
+                  "name": asset.name,
+                  "sizeBytes": asset.stat().st_size,
+                  "sha256": hashlib.file_digest(
+                      asset.open("rb"), "sha256"
+                  ).hexdigest(),
+                  "url": (
+                      f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+                      f"/releases/download/{os.environ['TAG']}/{asset.name}"
+                  ),
+              })
+          if not parts:
+              raise RuntimeError("Keine Release-Dateien gefunden")
 
           package = {
               "id": f"{country}-map",
@@ -243,14 +269,7 @@ jobs:
               "sizeBytes": size_bytes,
               "sha256": sha256,
               "fileName": output_name,
-              "parts": [
-                  {
-                      "name": output_name,
-                      "sizeBytes": size_bytes,
-                      "sha256": sha256,
-                      "url": release_url,
-                  }
-              ],
+              "parts": parts,
           }
 
           packages = data.setdefault("packages", [])

@@ -6,6 +6,12 @@ WORK_ROOT="${WORK_ROOT:-$PWD/.map-build}"
 UPSTREAM_COMMIT="${UPSTREAM_COMMIT:-7adf3bbc34576a3c7e70e069670f404152d88f9e}"
 
 case "$COUNTRY" in
+  de)
+    COUNTRY_NAME="Deutschland"
+    AREA="germany"
+    LANGUAGES="de,en"
+    OUTPUT_NAME="germany.pmtiles"
+    ;;
   dk)
     COUNTRY_NAME="Dänemark"
     AREA="denmark"
@@ -68,5 +74,30 @@ languages=$LANGUAGES
 upstreamCommit=$UPSTREAM_COMMIT
 output=$OUTPUT_NAME
 EOF
+
+# Prepare release assets. Files above 1 GiB are split into parts.
+mkdir -p "$OUT/release"
+rm -f "$OUT/release/"*
+
+SIZE="$(stat -c '%s' "$OUT/$OUTPUT_NAME")"
+LIMIT=1073741824
+
+if [ "$SIZE" -gt "$LIMIT" ]; then
+  split -b "$LIMIT" -d -a 2 \
+    "$OUT/$OUTPUT_NAME" \
+    "$OUT/release/$OUTPUT_NAME.part"
+else
+  cp "$OUT/$OUTPUT_NAME" "$OUT/release/$OUTPUT_NAME"
+fi
+
+# Verify that the parts reconstruct the original map exactly.
+cat "$OUT/release/"* | sha256sum | awk '{print $1}' \
+  | grep -Fx "$(sha256sum "$OUT/$OUTPUT_NAME" | awk '{print $1}')"
+
+echo "Release assets:"
+for f in "$OUT"/release/*; do
+  sha256sum "$f"
+  stat -c '%n %s bytes' "$f"
+done
 
 echo "Built $OUT/$OUTPUT_NAME"
