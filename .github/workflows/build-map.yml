@@ -122,27 +122,64 @@ jobs:
 
           DIR=".map-build/data/sources"
           ZIP="$DIR/water-polygons-split-3857.zip"
-          URL="https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"
+          PRIMARY="https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"
+          MIRROR="https://ftp.fau.de/mirrors/openstreetmapdata.com-archive"
 
           mkdir -p "$DIR"
 
+          download_zip() {
+            local url="$1"
+
+            rm -f "$ZIP.partial"
+
+            if curl -fL --retry 1 --retry-all-errors \
+              --retry-delay 3 --connect-timeout 12 \
+              --max-time 1800 \
+              -o "$ZIP.partial" "$url" \
+              && unzip -tq "$ZIP.partial"; then
+              mv "$ZIP.partial" "$ZIP"
+              return 0
+            fi
+
+            rm -f "$ZIP.partial"
+            return 1
+          }
+
           if [ -s "$ZIP" ] && unzip -tq "$ZIP"; then
             echo "Verified cached water polygons."
+          elif download_zip "$PRIMARY"; then
+            echo "Downloaded from primary server."
           else
-            rm -f "$ZIP" "$ZIP.partial"
-            curl --fail --location \
-              --retry 8 \
-              --retry-all-errors \
-              --retry-delay 15 \
-              --connect-timeout 30 \
-              --output "$ZIP.partial" \
-              "$URL"
+            echo "Primary unavailable. Trying FAU mirror."
 
-            unzip -tq "$ZIP.partial"
-            mv "$ZIP.partial" "$ZIP"
-            echo "Downloaded and verified water polygons."
+            DATES="$(curl -fsSL               --connect-timeout 12 --max-time 30               "$MIRROR/"               | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}/'               | sort -ru)"
+
+            test -n "$DATES"
+
+            FOUND=false
+
+            for DATE in $DATES; do
+              echo "Checking FAU archive: $DATE"
+
+              if curl -fsSL                 --connect-timeout 12 --max-time 30                 "$MIRROR/$DATE"                 | grep -F 'water-polygons-split-3857.zip' >/dev/null; then
+
+                echo "Water polygons found in archive: $DATE"
+
+                if download_zip                   "$MIRROR/$DATE/water-polygons-split-3857.zip"; then
+                  FOUND=true
+                  break
+                fi
+              fi
+            done
+
+            if [ "$FOUND" != true ]; then
+              echo "No usable FAU water polygons archive found." >&2
+              exit 1
+            fi
+
+            echo "Downloaded from FAU mirror."
+
           fi
-
       - name: Build DriveChronik map
         run: |
           bash scripts/build-map.sh "$COUNTRY"
