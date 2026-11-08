@@ -110,6 +110,39 @@ jobs:
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
           df -h /
 
+      - name: Cache water polygons
+        uses: actions/cache@v4
+        with:
+          path: .map-build/data/sources/water-polygons-split-3857.zip
+          key: water-polygons-3857-v1
+
+      - name: Ensure water polygons are available
+        run: |
+          set -euo pipefail
+
+          DIR=".map-build/data/sources"
+          ZIP="$DIR/water-polygons-split-3857.zip"
+          URL="https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip"
+
+          mkdir -p "$DIR"
+
+          if [ -s "$ZIP" ] && unzip -tq "$ZIP"; then
+            echo "Verified cached water polygons."
+          else
+            rm -f "$ZIP" "$ZIP.partial"
+            curl --fail --location \
+              --retry 8 \
+              --retry-all-errors \
+              --retry-delay 15 \
+              --connect-timeout 30 \
+              --output "$ZIP.partial" \
+              "$URL"
+
+            unzip -tq "$ZIP.partial"
+            mv "$ZIP.partial" "$ZIP"
+            echo "Downloaded and verified water polygons."
+          fi
+
       - name: Build DriveChronik map
         run: |
           bash scripts/build-map.sh "$COUNTRY"
