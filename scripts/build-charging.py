@@ -37,8 +37,18 @@ def parse_int(value):
         return 0
 
 
+def detect_encoding(path):
+    try:
+        with path.open("r", encoding="utf-8-sig") as f:
+            for _ in f:
+                pass
+        return "utf-8-sig"
+    except UnicodeDecodeError:
+        return "cp1252"
+
+
 def find_header(path):
-    with path.open("r", encoding="utf-8-sig", newline="") as f:
+    with path.open("r", encoding=detect_encoding(path), newline="") as f:
         reader = csv.reader(f, delimiter=";")
 
         for line_no, row in enumerate(reader, 1):
@@ -60,7 +70,7 @@ def find_header(path):
 def read_rows(path):
     header_line, header = find_header(path)
 
-    with path.open("r", encoding="utf-8-sig", newline="") as f:
+    with path.open("r", encoding=detect_encoding(path), newline="") as f:
         for _ in range(header_line):
             next(f)
 
