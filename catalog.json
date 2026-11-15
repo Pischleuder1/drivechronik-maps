@@ -72,16 +72,16 @@
       "country": "de",
       "countryName": "Deutschland",
       "kind": "charging",
-      "version": "2026-10-v1",
-      "sizeBytes": 29160366,
-      "sha256": "ee089083d3206874c87963d5a8446b6b21b70901421cc055a88dd419874043c1",
+      "version": "2026-11-v1",
+      "sizeBytes": 29676979,
+      "sha256": "3801bfa4b812912dfb93a22df4ad3570e8acef500193cff2d247b9cfc57cf75d",
       "fileName": "charging-stations.pmtiles",
       "parts": [
         {
           "name": "charging-stations.pmtiles",
-          "sizeBytes": 29160366,
-          "sha256": "ee089083d3206874c87963d5a8446b6b21b70901421cc055a88dd419874043c1",
-          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-charging-2026-10-v1/charging-stations.pmtiles"
+          "sizeBytes": 29676979,
+          "sha256": "3801bfa4b812912dfb93a22df4ad3570e8acef500193cff2d247b9cfc57cf75d",
+          "url": "https://github.com/Pischleuder1/drivechronik-maps/releases/download/de-charging-2026-11-v1/charging-stations.pmtiles"
         }
       ]
     },
